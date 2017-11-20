@@ -50,3 +50,64 @@ socket.io提供了三种默认的方法socket.connect，socket.message,socket.di
 - socket.emit()向建立连接的客户端广播
 - socket.broadcast.emit()向没有建立连接的客户端广播
 - io.sockets.emit()，向所有客户端广播
+
+
+
+用户上线模块要点
+
+客户端
+
+```
+var from = $.cookie('user');
+var to = "all";
+//通知已经上线的用户，谁来了
+socket.emit('online',{user:from});
+//该客户端自己也要接收谁上线的消息，有可能这个cookie是自己，要判断一下
+socket.on("online",function (data) {
+  if(data.user!==from) {
+    var sys = '<div>系统提示('+now()+'):'+'用户'+'data.user'+"上线了"+"</div>";
+  } else {
+    var sys  = '<div>系统提示('+now()+'):你进入了聊天室！</div>' ;
+  }
+  //刷新一下用户列表
+  flushUsers(data.users);
+  //显示正在对谁说话
+  showSayTo();
+})
+```
+
+
+
+```
+//向连接的客户端建立监听
+socket.on("online",function (data) {
+  socket.name = data.user;
+  if(!users[data.user]){
+    users[data.user] = data.user;
+  }
+  io.sockets.emit('online',{user:data.user});
+})
+```
+
+注意：我们把存储用户名的操作放到用户上线的事件里（即 `socket.on('online')` 里），而不是用户登录时把直接用户名存储到数组。这是因为 **“用户上线添加用户名，用户下线删除用户名”** 这是一个对称的操作。假如用户登录时把用户名存储到数组，用户下线时从数组中删除用户名，那么当用户刷新聊天室页面或者关闭然后重新打开页面时（都会触发一个下线并上线的动作），users 数组中就会只删除而不再重新添加该用户，即右侧的 “在线用户” 列表也不会显示该用户名了
+
+
+
+用户通话模块
+
+```
+$("#say").click(function () {
+  var $msg = $("#input_content").html();
+  if($msg) return ;
+  if(to==='all') {
+    $("#contents").append('<div>你(' + now() + ')对 所有人 说：<br/>' + $msg + '</div><br />');
+  } else {
+    $("#contents").append('<div style="color:#00f" >你(' + now() + ')对 ' + to + ' 说：<br/>' + $msg + '</div><br />');
+  }
+   //发送发话信息
+  socket.emit('say', {from: from, to: to, msg: $msg});
+  //清空输入框并获得焦点
+  $("#input_content").html("").focus();
+})
+```
+
