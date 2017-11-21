@@ -85,7 +85,7 @@ socket.on("online",function (data) {
   if(!users[data.user]){
     users[data.user] = data.user;
   }
-  io.sockets.emit('online',{user:data.user});
+  io.sockets.emit('online',{user:data.user,users:users});
 })
 ```
 
@@ -94,6 +94,8 @@ socket.on("online",function (data) {
 
 
 用户通话模块
+
+用户发送消息的部分
 
 ```
 $("#say").click(function () {
@@ -109,5 +111,75 @@ $("#say").click(function () {
   //清空输入框并获得焦点
   $("#input_content").html("").focus();
 })
+```
+
+用户需要接受消息
+
+```
+socket.on('say',function(data) {
+  //对所有人说
+  if(data.to=='all') {
+     $("#contents").append('<div>' + data.from + '(' + now() + ')对 所有人 说：<br/>' + data.msg + '</div><br />');
+  }
+  //对我私聊
+  if(data.to==from) {
+     $("#contents").append('<div style="color:#00f" >' + data.from + '(' + now() + ')对 说：<br/>' + data.msg + '</div><br />');
+  }
+})
+```
+
+服务端需要处理
+
+```
+//有人发话
+socket.on('say',function (data) {
+  if(data.to=='all'){
+    socket.broadcast.emit('say',data);
+  } else {
+    //向特定的用户发送
+    //clients存储所有连接对象的数组
+    var clients = io.sockets.clients();
+    //遍历找到用户
+    clinets.forEach(function (client) {
+      if(client.name==data.to){
+      //触发该用户端的say事件，该用户将接收到消息
+        client.emit('say',data);
+      }
+    })
+    
+  }
+})
+```
+
+用户下线模块
+
+服务端的处理
+
+```
+//有人下线的话
+socket.on('disconnect',function () {
+  if(users[socket.name]) {
+    delete users[socket.name];
+    socket.broadcast.emit('offline',{users: users,user:socket.name});
+  }
+})
+```
+
+客户端
+
+```
+socket.on('offline', function (data) {
+  //显示系统消息
+  var sys = '<div style="color:#f00">系统(' + now() + '):' + '用户 ' + data.user + ' 下线了！</div>';
+  $("#contents").append(sys + "<br/>");
+  //刷新用户在线列表
+  flushUsers(data.users);
+  //如果正对某人聊天，该人却下线了
+  if (data.user == to) {
+  
+  }
+  //显示正在对谁说话
+  showSayTo();
+});
 ```
 
